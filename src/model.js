@@ -55,8 +55,14 @@ export class CodeplugModel {
 			children: [],
 			parent: null,
 		};
-		for (const f of this.schema.root.fields) this.#instantiate(root, f);
-		for (const d of this.schema.root.derived) this.#instantiate(root, d);
+		for (const f of this.schema.root.fields) {
+			const child = this.#instantiate(root, f);
+			if (child) root.children.push(child);
+		}
+		for (const d of this.schema.root.derived) {
+			const child = this.#instantiate(root, d);
+			if (child) root.children.push(child);
+		}
 		return root;
 	}
 
@@ -123,7 +129,7 @@ export class CodeplugModel {
 				return this.#unsupported(parent, field, `unsupported kind ${field.kind}`);
 		}
 
-		// Arrays of primitives/str.
+		// arrays of primitives/str.
 		if (field.repeat && (field.kind === "int" || field.kind === "str" || field.kind === "bytes")) {
 			node.kind = "array";
 			node.elemKind = field.kind;
@@ -143,7 +149,8 @@ export class CodeplugModel {
 			}
 		}
 
-		parent.children.push(node);
+		// NOTE: the caller adds the returned node to parent.children — this
+		// function never pushes, so children can't be registered twice.
 		return node;
 	}
 
@@ -176,7 +183,7 @@ export class CodeplugModel {
 
 	#unsupported(parent, field, why) {
 		this.errors.push(`${field.id}: ${why}`);
-		parent.children.push({
+		return {
 			id: field.id,
 			kind: "opaque",
 			path: parent.path ? `${parent.path}.${field.id}` : field.id,
@@ -186,8 +193,7 @@ export class CodeplugModel {
 			children: [],
 			offset: field.offset ?? null,
 			size: field.size ?? null,
-		});
-		return null;
+		};
 	}
 
 	// ------------------------------------------------------------- expression
