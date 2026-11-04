@@ -96,6 +96,11 @@ export class CodeplugModel {
 				break;
 			case "derived":
 				node.valueExpr = compileExpr(field.value);
+				if (field.writeExpr) {
+					node.writeFn = compileExpr(field.writeExpr);
+					node.writeTarget = field.writeTarget;
+					node.writable = true;
+				}
 				break;
 			case "struct": {
 				if (offset == null) return this.#unsupported(parent, field, "unknown offset");
@@ -290,7 +295,18 @@ export class CodeplugModel {
 	 */
 	set(node, value) {
 		if (!node) return new Error("no node");
-		if (node.kind === "derived") return new Error(`"${node.id}" is computed (read-only)`);
+		if (node.kind === "derived") {
+			if (!node.writable) return new Error(`"${node.id}" is computed (read-only)`);
+			let raw;
+			try {
+				raw = node.writeFn((name) => (name === "_value" ? value : this.#resolve(node, name)));
+			} catch (e) {
+				return new Error(`inverse expression failed: ${e.message}`);
+			}
+			const target = (node.parent?.children || []).find((c) => c.id === node.writeTarget);
+			if (!target) return new Error(`write target "${node.writeTarget}" not found`);
+			return this.set(target, raw);
+		}
 		if (node.kind !== "int" && node.kind !== "str" && node.kind !== "bytes") {
 			return new Error(`"${node.id}" is not a scalar field`);
 		}

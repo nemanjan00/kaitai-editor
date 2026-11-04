@@ -28,8 +28,13 @@ const docOf = (def) => (typeof def?.doc === "string" ? def.doc : undefined);
 
 function normalizeEnumMap(map) {
 	// YAML keys: ints as parsed; KS enum values are ints. Keep both lookups.
+	// A member may be the plain form (`1: xz`) or ksc's map form
+	// (`1: {id: xz, doc: 67.0 Hz (XZ)}`); prefer doc as the display label.
 	const out = Object.create(null);
-	for (const [k, v] of Object.entries(map || {})) out[k] = String(v);
+	for (const [k, v] of Object.entries(map || {})) {
+		if (v != null && typeof v === "object") out[k] = String(v.doc || v.id || k);
+		else out[k] = String(v);
+	}
 	return out;
 }
 
@@ -59,7 +64,11 @@ export function loadSchema(ksy) {
 		}
 		for (const [id, inst] of Object.entries(def?.instances || {})) {
 			if (inst.value != null) {
-				derived.push({ id, kind: "derived", value: String(inst.value), enum: inst.enum, doc: docOf(inst) });
+				try {
+					derived.push(normalizeField({ ...inst, id }, typeEndian));
+				} catch (e) {
+					errors.push(`${name}.${id}: ${e.message}`);
+				}
 			}
 			// pos-based instances inside user types are legal in KS but rare in
 			// codeplug specs; skip them (they're addressable later if needed).
@@ -91,6 +100,15 @@ export function loadSchema(ksy) {
 		if (def.value != null) {
 			field.kind = "derived";
 			field.value = String(def.value);
+			// Optional write-inverse (kaitai-editor extension, `-ke-` prefix is
+			// ignored by ksc): given the new derived value as `_value`, the
+			// expression must yield the raw value for `writeTarget` (a sibling
+			// field). Makes the derived node editable in the UI.
+			if (def["-ke-write-expr"] != null) {
+				field.writeExpr = String(def["-ke-write-expr"]);
+				field.writeTarget = def["-ke-write-target"] != null ? String(def["-ke-write-target"]) : null;
+				if (!field.writeTarget) throw new UnsupportedError(`derived "${id}" has -ke-write-expr but no -ke-write-target`);
+			}
 			return field;
 		}
 

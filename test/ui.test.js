@@ -53,7 +53,12 @@ test("ui: selecting a block renders its fields with values", () => {
 	assert.ok(rows.length > 20, `expected channel rows, got ${rows.length}`);
 	const text = parent.textContent;
 	assert.match(text, /rx_raw/);
-	assert.match(text, /446068750/); // derived rx_hz, live-evaluated
+	// derived rx_hz is now an editable input; assert its value (not textContent)
+	const rxHzRow = [...parent.querySelectorAll(".ke-detail .ke-row")].find((r) =>
+		r.querySelector(".ke-name")?.textContent === "rx_hz",
+	);
+	assert.ok(rxHzRow, "rx_hz row missing");
+	assert.equal(rxHzRow.querySelector("input")?.value, "446068750");
 });
 
 test("ui: model write updates the DOM via rev bump", () => {
@@ -80,4 +85,38 @@ test("ui: hex view flags dirty bytes and click locates the owning block", async 
 	dirty[0].click();
 	assert.equal(ui.sel, "own_unit_no"); // jumped to the owning top-level block
 	assert.equal(ui.flash, "own_unit_no");
+});
+
+test("ui: enum select shows human-readable label and current value", () => {
+	const parent = document.createElement("div");
+	const { ui } = mountKaitaiEditor(parent, { model: makeModel() });
+
+	ui.sel = "channels";
+	const select = parent.querySelector(".ke-detail select.ke-input");
+	assert.ok(select, "expected an enum select in the channel rows");
+	const labels = [...select.options].map((o) => o.textContent);
+	assert.ok(labels.includes("67.0 Hz (XZ)"), `PL labels missing, got: ${labels.slice(0, 3)}`);
+	assert.ok(labels.includes("250.3 Hz (M7)"));
+	// channel 0 tx_pl = 0 -> "Disabled" shown as selected (happy-dom's per-option
+	// `selected` state is unreliable while detached; assert via select.value)
+	assert.equal(String(select.value), "0");
+	assert.equal(select.options[select.selectedIndex]?.textContent, "Disabled");
+});
+
+test("ui: editing a writable derived field writes the raw bytes", () => {
+	const parent = document.createElement("div");
+	const { model, ui } = mountKaitaiEditor(parent, { model: makeModel() });
+
+	ui.sel = "channels";
+	const row = [...parent.querySelectorAll(".ke-detail .ke-row")].find((r) =>
+		r.querySelector(".ke-name")?.textContent === "rx_hz",
+	);
+	assert.ok(row, "rx_hz row not found");
+	const input = row.querySelector("input");
+	assert.ok(input, "rx_hz should be editable (has -ke-write-expr)");
+
+	input.value = String(375000000 + 12001 * 5000); // 5 kHz grid (60,005,000 not on 6.25 kHz grid)
+	input.dispatchEvent(new window.Event("change", { bubbles: true }));
+	assert.equal(model.value(model.byPath("channels[0].rx_raw")), 12001);
+	assert.equal(model.value(model.byPath("channels[0].rx_hz")), 375000000 + 12001 * 5000);
 });

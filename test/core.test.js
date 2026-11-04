@@ -54,7 +54,7 @@ test("model: derived instances evaluate (flags, frequencies, group numbers)", ()
 });
 
 test("model: enum labels resolve", () => {
-	assert.equal(model.display(model.byPath("channels[0].tx_pl")), "disabled");
+	assert.equal(model.display(model.byPath("channels[0].tx_pl")), "Disabled");
 	assert.equal(model.display(model.byPath("own_groups[0].prefix")), "43");
 });
 
@@ -83,10 +83,36 @@ test("model: write string into fixed slot pads with NULs", () => {
 	assert.deepEqual([...model.buffer.subarray(0x08 + 2, 0x08 + 12)], new Array(10).fill(0));
 });
 
-test("model: derived fields are read-only", () => {
-	const err = model.set(model.byPath("channels[0].rx_hz"), 1);
+test("model: derived fields without a write inverse are read-only", () => {
+	const err = model.set(model.byPath("acoustic_feedback"), false);
 	assert.ok(err instanceof Error);
 	assert.match(err.message, /read-only/);
+});
+
+test("model: writable derived (rx_hz) maps back to its raw field", () => {
+	const rxHz = model.byPath("channels[0].rx_hz");
+	assert.equal(rxHz.writable, true);
+	assert.equal(rxHz.writeTarget, "rx_raw");
+	// 446.06875 MHz is on the 6.25 kHz grid -> bit15 set, same as before (0xAC6B)
+	assert.equal(model.set(rxHz, 375000000 + 11371 * 6250), null);
+	assert.equal(model.value(model.byPath("channels[0].rx_raw")), 0xac6b);
+	assert.deepEqual([...model.buffer.subarray(0x1e7, 0x1e9)], [0xac, 0x6b]);
+	// 5 kHz grid value -> bit15 clear, word = (f - 375 MHz) / 5000.
+	// 12001*5000 = 60005000 is NOT divisible by 6250, so the inverse picks the
+	// 5 kHz grid; 12000*5000 = 60000000 % 6250 == 0 would pick the 6.25 kHz grid.
+	assert.equal(model.set(rxHz, 375000000 + 12001 * 5000), null);
+	assert.equal(model.value(model.byPath("channels[0].rx_raw")), 12001);
+	assert.deepEqual([...model.buffer.subarray(0x1e7, 0x1e9)], [0x2e, 0xe1]);
+});
+
+test("model: writable derived (group_number) round-trips", () => {
+	const node = model.byPath("own_groups[0].group_number");
+	assert.equal(node.writable, true);
+	const before = model.value(node);
+	assert.equal(model.set(node, 950), null);
+	assert.equal(model.value(model.byPath("own_groups[0].group_raw")), 950 - 0x304);
+	assert.equal(model.set(node, before), null);
+	assert.equal(model.value(model.byPath("own_groups[0].group_raw")), 0x87);
 });
 
 test("model: nodeAt finds deepest field", () => {

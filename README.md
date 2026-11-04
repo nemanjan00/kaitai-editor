@@ -86,7 +86,9 @@ The editor only needs what a fixed-layout binary spec uses:
 | `types` with `seq` of `u1…u8`, `s1…s8`, `f4/f8`, `bool`, `str`, `bytes`, nested types | fixed `size` required for `str` |
 | `repeat: expr` | count must be a constant expression |
 | `enums` | rendered as labelled dropdowns |
-| derived `instances` (`value:`) | evaluated live, shown read-only |
+| derived `instances` (`value:`) | evaluated live; editable when a write inverse is declared (see below) |
+| `-ke-write-expr` / `-ke-write-target` on a derived instance | kaitai-editor extension (ignored by ksc): expression mapping the edited value back, `_value` = new value; result is written to the named sibling field. Example in `sample/gm600_codeplug.ksy` (`rx_hz` → `rx_raw`) |
+| enum member map form (`1: {id: xz, doc: 67.0 Hz (XZ)}`) | `doc` used as the human-readable label (ksc-compatible) |
 | `size`-only instances | shown as opaque, non-editable blocks |
 
 | not (yet) supported | degradation |

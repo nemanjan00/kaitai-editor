@@ -8,9 +8,10 @@
 import { el, list } from "@nemanjan00/qrp";
 
 /** Coerce user input per node kind before model.set. */
-function coerce(node, raw) {
+function coerce(model, node, raw) {
 	if (node.kind === "str") return String(raw);
 	if (node.kind === "bytes") return raw; // read-only in v1
+	if (node.kind === "derived" && typeof model.value(node) === "string") return String(raw);
 	return Number(raw);
 }
 
@@ -36,13 +37,20 @@ function control(model, ui, node) {
 			"select",
 			{
 				class: "ke-input ke-enum",
+				// HTML5-native: set the select's value (props apply after the
+				// option children exist); re-applied on any model change via ui.rev.
 				value: () => {
 					ui.rev;
-					return String(model.value(node) ?? "");
+					const v = model.value(node);
+					return v == null ? "" : String(v);
 				},
 				onchange: (e) => commit(model, ui, node, Number(e.target.value)),
 			},
-			list(() => entries, ([v]) => v, ([v, label]) => el("option", { value: v }, label)),
+			list(
+				() => entries,
+				([v]) => v,
+				([v, label]) => el("option", { value: v }, label),
+			),
 		);
 	}
 
@@ -63,7 +71,7 @@ function control(model, ui, node) {
 }
 
 function commit(model, ui, node, raw) {
-	const err = model.set(node, coerce(node, raw));
+	const err = model.set(node, coerce(model, node, raw));
 	if (err) {
 		ui.error = `${node.path}: ${err.message}`;
 	} else if (ui.error?.startsWith(node.path)) {
@@ -75,10 +83,22 @@ function commit(model, ui, node, raw) {
 export function fieldRow(model, ui, node, depth) {
 	const ctrl =
 		node.kind === "derived"
-			? el("code", { class: "ke-derived", title: node.field?.value ? `= ${node.field.value}` : "computed" }, () => {
-					ui.rev;
-					return model.display(node);
-				})
+			? node.writable
+				? el("input", {
+						type: typeof model.value(node) === "string" ? "text" : "number",
+						class: "ke-input ke-derived-edit",
+						title: `= ${node.field.value}\nwrites → ${node.writeTarget} (raw)`,
+						value: () => {
+							ui.rev;
+							const v = model.value(node);
+							return v === undefined ? "" : String(v);
+						},
+						onchange: (e) => commit(model, ui, node, e.target.value),
+					})
+				: el("code", { class: "ke-derived", title: node.field?.value ? `= ${node.field.value}` : "computed" }, () => {
+						ui.rev;
+						return model.display(node);
+					})
 			: node.kind === "opaque" || node.kind === "bytes"
 				? el("code", { class: "ke-raw-only" }, () => {
 						ui.rev;

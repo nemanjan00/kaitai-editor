@@ -35,6 +35,13 @@ const CASTS = {
 	to_s: (x) => String(x),
 };
 
+/** Extra math functions available in expressions (used by write-inverses). */
+const FUNCS = {
+	round: Math.round,
+	floor: Math.floor,
+	ceil: Math.ceil,
+};
+
 /**
  * Make the sandbox target for one evaluation. `resolve(name)` looks up a
  * variable lazily; lookups that throw stay uncaught here so callers can mark
@@ -47,6 +54,7 @@ function makeSandbox(resolve) {
 		has: (_t, key) => key !== Symbol.unscopables,
 		get: (_t, key) => {
 			if (key === Symbol.unscopables) return undefined;
+			if (key in FUNCS) return FUNCS[key];
 			if (key in CASTS) return CASTS[key];
 			return resolve(key);
 		},
