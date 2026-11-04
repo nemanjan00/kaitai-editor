@@ -148,3 +148,19 @@ test("createCodeplug: string ksy parses end to end", async () => {
 	const m = await createCodeplug(ksyText, bin.slice(0));
 	assert.equal(m.value(m.byPath("own_unit_no")), 322);
 });
+
+test("model: load() swaps bytes, clears dirty, enforces size", () => {
+	const m = new CodeplugModel(loadSchema(ksy), new Uint8Array(bin));
+	assert.equal(m.value(m.byPath("own_unit_no")), 322);
+	assert.equal(m.set(m.byPath("own_unit_no"), 700), null);
+	assert.ok(m.dirtyCount() > 0);
+
+	const modified = m.snapshot();
+	assert.equal(m.load(modified.slice()), null);
+	assert.equal(m.dirtyCount(), 0); // import resets dirty tracking
+	assert.equal(m.value(m.byPath("own_unit_no")), 700); // new bytes visible
+
+	const err = m.load(new Uint8Array(10));
+	assert.ok(err instanceof Error);
+	assert.match(err.message, /size mismatch/);
+});

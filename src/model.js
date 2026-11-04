@@ -331,6 +331,20 @@ export class CodeplugModel {
 		this.#emit(null);
 	}
 
+	/**
+	 * Replace the buffer with an imported file. Size must match exactly —
+	 * offsets come from the schema, so a differently-sized file can't be
+	 * mapped. Returns null on success or an Error (same contract as set()).
+	 */
+	load(bytes) {
+		if (bytes.length !== this.buffer.byteLength) {
+			return new Error(`size mismatch: file is ${bytes.length} bytes, codeplug needs ${this.buffer.byteLength}`);
+		}
+		this.buffer.set(bytes);
+		this.markClean();
+		return null;
+	}
+
 	// ------------------------------------------------------------------ lookup
 
 	/** Deepest (smallest) node whose [offset, offset+size) contains `offset`.

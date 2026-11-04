@@ -45,6 +45,7 @@
 	font-weight: 600;
 	cursor: pointer;
 }
+.ke-hidden-file { display: none; }
 .ke-btn:hover { filter: brightness(1.1); }
 
 /* ---- layout ---- */
@@ -83,6 +84,7 @@
 	color: var(--ke-text);
 	cursor: pointer;
 	font: inherit;
+	text-decoration: none; /* it's an <a> now */
 }
 .ke-block:hover { background: var(--ke-panel-2); }
 .ke-block.ke-active { background: var(--ke-sel); outline: 1px solid #1f6feb; }

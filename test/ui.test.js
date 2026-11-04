@@ -15,6 +15,8 @@ before(async () => {
 	Window = new HWindow();
 	globalThis.window = Window;
 	globalThis.document = Window.document;
+	globalThis.location = Window.location;
+	globalThis.history = Window.history;
 	for (const name of ["Node", "HTMLElement", "HTMLInputElement", "HTMLSelectElement", "SVGElement", "DocumentFragment", "Event", "CustomEvent", "KeyboardEvent", "MouseEvent", "FocusEvent", "InputEvent", "getComputedStyle", "MutationObserver"]) {
 		if (Window[name] !== undefined && globalThis[name] === undefined) globalThis[name] = Window[name];
 	}
@@ -119,4 +121,57 @@ test("ui: editing a writable derived field writes the raw bytes", () => {
 	input.dispatchEvent(new window.Event("change", { bubbles: true }));
 	assert.equal(model.value(model.byPath("channels[0].rx_raw")), 12001);
 	assert.equal(model.value(model.byPath("channels[0].rx_hz")), 375000000 + 12001 * 5000);
+});
+
+test("ui: sidebar blocks are real hash links", () => {
+	const parent = document.createElement("div");
+	const { ui } = mountKaitaiEditor(parent, { model: makeModel() });
+
+	const anchors = [...parent.querySelectorAll("a.ke-block")];
+	assert.ok(anchors.length > 10, `expected sidebar links, got ${anchors.length}`);
+	const channels = anchors.find((a) => a.getAttribute("href") === "#channels");
+	assert.ok(channels, "expected an <a href=\"#channels\"> in the sidebar");
+
+	channels.click(); // real anchor: onclick selects, default nav updates the hash
+	assert.equal(ui.sel, "channels");
+});
+
+test("ui: hashchange drives the selection (deep link / back-forward)", () => {
+	const parent = document.createElement("div");
+	const { ui } = mountKaitaiEditor(parent, { model: makeModel() });
+
+	globalThis.location.hash = "#own_groups"; // simulate pasted/back-button URL
+	window.dispatchEvent(new window.Event("hashchange"));
+	assert.equal(ui.sel, "own_groups");
+
+	ui.sel = "channels"; // selection syncs back via replaceState
+	assert.equal(globalThis.location.hash, "#channels");
+});
+
+test("ui: Import .bin reloads the model buffer", async () => {
+	const parent = document.createElement("div");
+	const { model, ui } = mountKaitaiEditor(parent, { model: makeModel() });
+
+	const input = parent.querySelector('.ke-toolbar input[type="file"]');
+	assert.ok(input, "hidden file input missing");
+	const btn = [...parent.querySelectorAll(".ke-toolbar button")].find((b) => b.textContent === "Import .bin");
+	assert.ok(btn, "Import .bin button missing");
+
+	const modified = model.snapshot();
+	modified[0x18b] = 0x02;
+	modified[0x18c] = 0xbc; // own_unit_no = 700
+	const file = new window.File([modified.slice().buffer], "edited.bin");
+	Object.defineProperty(input, "files", { value: [file], configurable: true });
+	input.dispatchEvent(new window.Event("change", { bubbles: true }));
+	await new Promise((r) => setTimeout(r, 0));
+
+	assert.equal(model.value(model.byPath("own_unit_no")), 700);
+	assert.equal(ui.error, null);
+
+	// wrong size surfaces an error instead of corrupting the buffer
+	const bad = new window.File([new Uint8Array(10).buffer], "bad.bin");
+	Object.defineProperty(input, "files", { value: [bad], configurable: true });
+	input.dispatchEvent(new window.Event("change", { bubbles: true }));
+	await new Promise((r) => setTimeout(r, 0));
+	assert.match(ui.error, /size mismatch/);
 });

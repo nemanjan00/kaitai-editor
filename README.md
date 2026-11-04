@@ -32,7 +32,10 @@ PORT=8123 npm run dev   # pick another port
 and `sample/final.bin` (both gitignored — drop your own into `sample/`, or use the
 file pickers in the demo UI). Editing works immediately; **Export .bin** writes the
 patched binary, running any registered export hooks first (the demo recomputes the
-GM600 additive personality checksum).
+GM600 additive personality checksum). **Import .bin** reloads the model from a file
+(size must match exactly). The sidebar blocks are real `<a href="#block">` links —
+the URL hash tracks the selection, so blocks are deep-linkable and back/forward
+navigate between them.
 
 Other scripts: `npm run build` (bundle the UI lib to `dist/`), `npm run build:demo`,
 `npm run serve` (plain static server).
