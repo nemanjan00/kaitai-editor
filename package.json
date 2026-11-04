@@ -19,8 +19,8 @@
 		"test": "node --test test/",
 		"build": "esbuild src/ui/index.js --bundle --format=esm --outfile=dist/kaitai-editor.js --loader:.css=css",
 		"build:demo": "esbuild demo/app.js --bundle --format=iife --outfile=demo/bundle.js --loader:.css=css",
-		"dev": "esbuild demo/app.js --bundle --format=iife --outfile=demo/bundle.js --loader:.css=css --watch --servedir=. --serve=${PORT:-8080}",
-		"serve": "python3 -m http.server ${PORT:-8080}"
+		"dev": "node scripts/dev.mjs",
+		"serve": "node scripts/serve.mjs"
 	},
 	"dependencies": {
 		"@nemanjan00/qrp": "0.13.1",

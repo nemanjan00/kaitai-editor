@@ -23,8 +23,8 @@ editor without writing any format-specific UI code.
 
 ```sh
 npm install
-npm test          # 18 tests: core round-trip + UI smoke (happy-dom)
-npm run dev       # esbuild watch + serve (PORT env, default 8080), open /demo/
+npm test          # 26 tests: core round-trip + UI smoke (happy-dom)
+npm run dev       # esbuild watch + SPA-fallback server (PORT env, default 8080), open /demo/
 PORT=8123 npm run dev   # pick another port
 ```
 
@@ -33,11 +33,14 @@ and `sample/final.bin` (both gitignored — drop your own into `sample/`, or use
 file pickers in the demo UI). Editing works immediately; **Export .bin** writes the
 patched binary, running any registered export hooks first (the demo recomputes the
 GM600 additive personality checksum). **Import .bin** reloads the model from a file
-(size must match exactly). The sidebar blocks are real `<a href="#block">` links —
-the URL hash tracks the selection, so blocks are deep-linkable and back/forward
-navigate between them.
+(size must match exactly). The sidebar blocks are real `<a href>` links with
+History-API navigation — selections live in the path (`/demo/channels%5B0%5D`),
+so blocks are deep-linkable and back/forward navigate between them. The dev
+server (`scripts/serve.mjs`) falls back to the demo's `index.html` for those
+routes; embed with `mountKaitaiEditor(el, { model, base })` where `base` is
+the app's mount path.
 
-Other scripts: `npm run build` (bundle the UI lib to `dist/`), `npm run build:demo`,
+Other scripts: `npm run serve` (static server only), `npm run build` (bundle the UI lib to `dist/`), `npm run build:demo`,
 `npm run serve` (plain static server).
 
 ## Library usage

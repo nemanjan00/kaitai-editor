@@ -6,6 +6,10 @@
  *
  * `hooks.onBeforeExport(model)` runs before the .bin download — the place
  * for domain fixups like checksum recomputation.
+ *
+ * `base` is the app's mount path (e.g. "/demo/"); selections are pushed as
+ * clean History-API URLs under it ("/demo/channels%5B0%5D"). The server must
+ * fall back to the app shell for those paths (see scripts/serve.mjs).
  */
 
 import { state, el, list, when, scoped, untracked, effect } from "@nemanjan00/qrp";
@@ -18,23 +22,32 @@ function blocksOf(model) {
 	return model.root.children.filter((c) => c.kind !== "derived");
 }
 
-// ------------------------------------------------------------ location hash
-// Sidebar blocks are real <a href="#path"> anchors: middle-click, copy-link
-// and back/forward all work. Programmatic selection (hex-view clicks) syncs
-// via replaceState so no history entries pile up.
+// ---------------------------------------------------- History-API routing
+// Sidebar blocks are real <a href="/base/path"> anchors: middle-click,
+// copy-link and back/forward all work. Clicking pushes a history entry;
+// programmatic selection (hex-view clicks) syncs via replaceState so no
+// entries pile up. popstate drives the selection back the other way.
 
-function selFromHash(model) {
-	if (typeof location === "undefined" || !location.hash) return null;
+function selFromUrl(model, base) {
+	if (typeof location === "undefined") return null;
+	let p = location.pathname;
+	if (base && base !== "/") {
+		if (!p.startsWith(base)) return null;
+		p = p.slice(base.length);
+	} else if (p.startsWith("/")) {
+		p = p.slice(1);
+	}
+	if (!p) return null;
 	try {
-		const p = decodeURIComponent(location.hash.slice(1));
-		return p && model.byPath(p) ? p : null;
+		p = decodeURIComponent(p);
+		return model.byPath(p) ? p : null;
 	} catch {
 		return null;
 	}
 }
 
-function hashFor(sel) {
-	return `#${encodeURIComponent(sel)}`;
+function urlFor(base, sel) {
+	return (base || "/") + encodeURIComponent(sel);
 }
 
 function toolbar(model, ui, hooks) {
@@ -83,7 +96,7 @@ function toolbar(model, ui, hooks) {
 	);
 }
 
-function sidebar(model, ui) {
+function sidebar(model, ui, base) {
 	const blocks = blocksOf(model);
 	return el(
 		"nav",
@@ -99,11 +112,14 @@ function sidebar(model, ui) {
 					el(
 						"a",
 						{
-							href: hashFor(b.path),
+							href: urlFor(base, b.path),
 							class: () => "ke-block" + (ui.sel === b.path ? " ke-active" : ""),
 							title: b.doc || undefined,
-							onclick: () => {
-								// default navigation updates the hash; hashchange sets ui.sel
+							onclick: (e) => {
+								e?.preventDefault?.(); // we navigate via pushState ourselves
+								if (typeof history !== "undefined" && history.pushState) {
+									history.pushState(null, "", urlFor(base, b.path));
+								}
 								ui.sel = b.path;
 								ui.flash = null;
 							},
@@ -157,28 +173,28 @@ function detail(model, ui) {
  * Build the editor UI in a fresh ownership scope. Returns the root element
  * plus a dispose() that tears down every effect/listener.
  */
-export function buildEditor({ model, hooks }) {
+export function buildEditor({ model, hooks, base = "/" }) {
 	const firstBlock = () => blocksOf(model)[0]?.path ?? null;
-	const ui = state({ rev: 0, sel: selFromHash(model) ?? firstBlock(), flash: null, error: null });
+	const ui = state({ rev: 0, sel: selFromUrl(model, base) ?? firstBlock(), flash: null, error: null });
 
 	const offChange = model.onChange(() => {
 		ui.rev++;
 	});
 
-	// hash -> selection: real navigation (click, paste URL, back/forward)
-	const onHash = () => {
-		ui.sel = selFromHash(model) ?? firstBlock();
+	// URL -> selection: back/forward and pasted deep links
+	const onPop = () => {
+		ui.sel = selFromUrl(model, base) ?? firstBlock();
 		ui.flash = null;
 	};
 	if (typeof window !== "undefined" && window.addEventListener) {
-		window.addEventListener("hashchange", onHash);
+		window.addEventListener("popstate", onPop);
 	}
 
-	// selection -> hash: keep the URL shareable without spamming history
+	// selection -> URL: keep the URL shareable without spamming history
 	effect(() => {
 		if (typeof location === "undefined" || typeof history === "undefined" || !history.replaceState) return;
-		const target = ui.sel ? hashFor(ui.sel) : "";
-		if (location.hash !== target) history.replaceState(null, "", target || location.pathname + location.search);
+		const target = ui.sel ? urlFor(base, ui.sel) : base;
+		if (location.pathname !== target) history.replaceState(null, "", target);
 	});
 
 	const element = el(
@@ -188,7 +204,7 @@ export function buildEditor({ model, hooks }) {
 		el(
 			"main",
 			{ class: "ke-main" },
-			sidebar(model, ui),
+			sidebar(model, ui, base),
 			el("div", { class: "ke-center" }, detail(model, ui)),
 			el("aside", { class: "ke-side-right" }, hexView(model, ui)),
 		),
@@ -197,7 +213,7 @@ export function buildEditor({ model, hooks }) {
 	const dispose = () => {
 		offChange();
 		if (typeof window !== "undefined" && window.removeEventListener) {
-			window.removeEventListener("hashchange", onHash);
+			window.removeEventListener("popstate", onPop);
 		}
 	};
 	return { element, ui, dispose };
@@ -207,9 +223,9 @@ export function buildEditor({ model, hooks }) {
  * Mount the editor into `parent`. Returns { model, dispose } — dispose tears
  * down effects; the element itself stays owned by the caller's DOM.
  */
-export function mountKaitaiEditor(parent, { model, hooks } = {}) {
+export function mountKaitaiEditor(parent, { model, hooks, base } = {}) {
 	if (!model) throw new Error("mountKaitaiEditor: { model } is required");
-	const { value, dispose } = scoped(() => untracked(() => buildEditor({ model, hooks })));
+	const { value, dispose } = scoped(() => untracked(() => buildEditor({ model, hooks, base })));
 	parent.append(value.element);
 	return { model, ui: value.ui, dispose };
 }

@@ -56,7 +56,7 @@ async function loadSample() {
 	]);
 	const model = new CodeplugModel(loadSchema(parse(ksyText)), new Uint8Array(bin));
 	app.textContent = "";
-	mountKaitaiEditor(app, { model, hooks: gm600Hooks(model) });
+	mountKaitaiEditor(app, { model, hooks: gm600Hooks(model), base: new URL(".", document.baseURI).pathname });
 }
 
 function filePickers() {
@@ -75,7 +75,7 @@ function filePickers() {
 		const bin = await binInput.files[0].arrayBuffer();
 		const model = new CodeplugModel(loadSchema(parse(ksyText)), new Uint8Array(bin));
 		app.textContent = "";
-		mountKaitaiEditor(app, { model, hooks: {} });
+		mountKaitaiEditor(app, { model, hooks: {}, base: new URL(".", document.baseURI).pathname });
 	};
 	binInput.onchange = go;
 }

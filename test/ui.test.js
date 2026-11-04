@@ -12,7 +12,7 @@ let mountKaitaiEditor, loadSchema, CodeplugModel, Window;
 
 before(async () => {
 	const { Window: HWindow } = await import("happy-dom");
-	Window = new HWindow();
+	Window = new HWindow({ url: "http://localhost/demo/" });
 	globalThis.window = Window;
 	globalThis.document = Window.document;
 	globalThis.location = Window.location;
@@ -123,29 +123,35 @@ test("ui: editing a writable derived field writes the raw bytes", () => {
 	assert.equal(model.value(model.byPath("channels[0].rx_hz")), 375000000 + 12001 * 5000);
 });
 
-test("ui: sidebar blocks are real hash links", () => {
+test("ui: sidebar blocks are real HTML5 links", () => {
+	globalThis.history.pushState(null, "", "/demo/"); // known start
 	const parent = document.createElement("div");
-	const { ui } = mountKaitaiEditor(parent, { model: makeModel() });
+	const { ui } = mountKaitaiEditor(parent, { model: makeModel(), base: "/demo/" });
 
 	const anchors = [...parent.querySelectorAll("a.ke-block")];
 	assert.ok(anchors.length > 10, `expected sidebar links, got ${anchors.length}`);
-	const channels = anchors.find((a) => a.getAttribute("href") === "#channels");
-	assert.ok(channels, "expected an <a href=\"#channels\"> in the sidebar");
+	const channels = anchors.find((a) => a.getAttribute("href") === "/demo/channels");
+	assert.ok(channels, 'expected an <a href="/demo/channels"> in the sidebar');
+	const depth = globalThis.history.length;
 
-	channels.click(); // real anchor: onclick selects, default nav updates the hash
+	channels.click(); // intercepted: pushState + select
 	assert.equal(ui.sel, "channels");
+	assert.equal(globalThis.location.pathname, "/demo/channels");
+	assert.ok(globalThis.history.length > depth, "click should push a history entry");
 });
 
-test("ui: hashchange drives the selection (deep link / back-forward)", () => {
+test("ui: popstate drives the selection (deep link / back-forward)", () => {
+	globalThis.history.pushState(null, "", "/demo/own_groups");
 	const parent = document.createElement("div");
-	const { ui } = mountKaitaiEditor(parent, { model: makeModel() });
+	const { ui } = mountKaitaiEditor(parent, { model: makeModel(), base: "/demo/" });
+	assert.equal(ui.sel, "own_groups"); // initial selection from the deep link
 
-	globalThis.location.hash = "#own_groups"; // simulate pasted/back-button URL
-	window.dispatchEvent(new window.Event("hashchange"));
-	assert.equal(ui.sel, "own_groups");
+	globalThis.history.pushState(null, "", "/demo/alignment_block");
+	window.dispatchEvent(new window.Event("popstate"));
+	assert.equal(ui.sel, "alignment_block");
 
-	ui.sel = "channels"; // selection syncs back via replaceState
-	assert.equal(globalThis.location.hash, "#channels");
+	ui.sel = "channels"; // programmatic selection syncs via replaceState
+	assert.equal(globalThis.location.pathname, "/demo/channels");
 });
 
 test("ui: Import .bin reloads the model buffer", async () => {
