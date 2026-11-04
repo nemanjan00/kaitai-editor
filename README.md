@@ -24,7 +24,8 @@ editor without writing any format-specific UI code.
 ```sh
 npm install
 npm test          # 18 tests: core round-trip + UI smoke (happy-dom)
-npm run dev       # esbuild watch + serve on :8080, open /demo/
+npm run dev       # esbuild watch + serve (PORT env, default 8080), open /demo/
+PORT=8123 npm run dev   # pick another port
 ```
 
 `npm run dev` serves the repo root; the demo fetches `sample/gm600_codeplug.ksy`
