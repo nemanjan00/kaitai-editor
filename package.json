@@ -1,0 +1,35 @@
+{
+	"name": "kaitai-editor",
+	"version": "0.1.0",
+	"description": "Generic codeplug/binary editor: load a Kaitai Struct (.ksy) spec, edit the structure in a GUI, write bytes back. UI built on @nemanjan00/qrp.",
+	"type": "module",
+	"license": "MIT",
+	"exports": {
+		".": {
+			"types": "./src/index.d.ts",
+			"default": "./src/index.js"
+		},
+		"./ui": {
+			"types": "./src/ui/index.d.ts",
+			"default": "./src/ui/index.js"
+		},
+		"./ui.css": "./src/ui/editor.css"
+	},
+	"scripts": {
+		"test": "node --test test/",
+		"build": "esbuild src/ui/index.js --bundle --format=esm --outfile=dist/kaitai-editor.js --loader:.css=css",
+		"build:demo": "esbuild demo/app.js --bundle --format=iife --outfile=demo/bundle.js --loader:.css=css",
+		"dev": "esbuild demo/app.js --bundle --format=iife --outfile=demo/bundle.js --loader:.css=css --watch --servedir=. --serve=8080",
+		"serve": "python3 -m http.server 8080"
+	},
+	"dependencies": {
+		"@nemanjan00/qrp": "0.13.1",
+		"yaml": "2.8.1"
+	},
+	"engines": {
+		"node": ">=20"
+	},
+	"devDependencies": {
+		"esbuild": "^0.28.2"
+	}
+}

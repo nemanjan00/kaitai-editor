@@ -1,1 +1,4 @@
 /sample
+node_modules/
+dist/
+demo/bundle.js
